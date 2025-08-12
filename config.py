@@ -31,21 +31,3 @@ LEARNING_RATE_PHASE2 = 0.00001 # Much smaller for fine-tuning
 MODEL_NAME = 'resnet50'
 MODEL_FILENAME = f'tb_detection_{MODEL_NAME}_best.h5'
 
-# --- Hyperparameter Tuning Parameters ---
-ENABLE_TUNING = True # Set to True to run tuning, False to use defaults
-TUNER_PROJECT_NAME = 'tb_detection_tuning'
-TUNER_DIRECTORY = os.path.join(BASE_DIR, 'tuner_results') # Where Keras Tuner logs its trials
-MAX_TRIALS = 15 # Max number of hyperparameter combinations to try
-EXECUTIONS_PER_TRIAL = 1 # Number of models to train per trial (for robustness, but increases time)
-OVERWRITE_TUNER_RESULTS = True # Set to True to start a fresh tuning run each time
-
-# Hyperparameter Search Space (for Keras Tuner)
-HP_DENSE_UNITS_CHOICES = [128, 256, 512] # Options for the dense layer in the custom head
-HP_DROPOUT_RATE_MIN = 0.2
-HP_DROPOUT_RATE_MAX = 0.6
-HP_DROPOUT_RATE_STEP = 0.1
-HP_LR_PH1_CHOICES = [1e-3, 5e-4] # Learning rates for Phase 1
-HP_LR_PH2_CHOICES = [1e-5, 5e-6, 1e-6] # Learning rates for Phase 2 (for fine-tuning)
-
-# Path to save/load best hyperparameters
-BEST_HPS_PATH = os.path.join(MODELS_DIR, 'best_hps.json')

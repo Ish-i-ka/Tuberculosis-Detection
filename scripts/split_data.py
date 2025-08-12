@@ -14,6 +14,9 @@ current_script_dir = os.path.dirname(os.path.abspath(__file__))
 project_root_dir = os.path.join(current_script_dir, '..')
 sys.path.append(project_root_dir)
 import config
+from utils.logger import logger # Import the global logger
+from utils.exception import TBDetectionError,DataError, FileSystemError # Import custom exceptions
+from utils.common import create_and_clear_directory, exit_on_critical_error 
 
 # --- Configuration (using variables from config.py) ---
 RAW_DATA_PATH = config.RAW_DATA_PATH
@@ -23,101 +26,100 @@ VAL_SPLIT = config.VAL_SPLIT
 TEST_SPLIT = config.TEST_SPLIT
 CLASSES = config.CLASSES
 
-# --- Helper function to create/recreate directories ---
-# This function will ensure that data/processed/ and its subfolders are clean each run
-def create_and_clear_directory(path):
-    if os.path.exists(path):
-        print(f"Removing existing directory: {path}")
-        shutil.rmtree(path)
-    os.makedirs(path)
-    print(f"Created directory: {path}")
-
-# --- Main data splitting logic ---
 def split_data():
-    print(f"--- Starting Data Splitting Process ---")
-    print(f"Source Raw Data Path: {RAW_DATA_PATH}")
-    print(f"Destination Processed Data Path: {PROCESSED_DATA_PATH}")
+    logger.info(f"--- Starting Data Splitting Process ---")
+    logger.info(f"Source Raw Data Path: {RAW_DATA_PATH}")
+    logger.info(f"Destination Processed Data Path: {PROCESSED_DATA_PATH}")
 
-    # --- Step 1: Prepare Destination Directories ---
-    create_and_clear_directory(PROCESSED_DATA_PATH)
-    for subset in ['train', 'val', 'test']:
-        for cls in CLASSES:
-            os.makedirs(os.path.join(PROCESSED_DATA_PATH, subset, cls))
-    print("Destination directories prepared.")
+    try:
+        # This function now raises FileSystemError if there's an issue
+        create_and_clear_directory(PROCESSED_DATA_PATH, "processed data directory")
+        for subset in ['train', 'val', 'test']:
+            for cls in CLASSES:
+                # os.makedirs will raise an OSError if it fails, caught by FileSystemError
+                os.makedirs(os.path.join(PROCESSED_DATA_PATH, subset, cls), exist_ok=True)
+        logger.info("Destination directories prepared.")
 
-    # --- Step 2: Collect All Image Paths from Raw Data ---
-    all_image_paths = []
-    all_labels = []
+        # Collect All Image Paths from Raw Data 
+        all_image_paths = []
+        all_labels = []
 
-    if not os.path.exists(RAW_DATA_PATH):
-        print(f"\nCRITICAL ERROR: Raw data directory not found at: {RAW_DATA_PATH}")
-        print("Please ensure your Kaggle dataset is unzipped into this location.")
-        sys.exit(1) # Exit the script if raw data path is invalid
+        if not os.path.exists(RAW_DATA_PATH):
+            # Raise a custom DataError, passing sys.exc_info()
+            raise DataError(f"Raw data directory not found at: {RAW_DATA_PATH}", sys.exc_info())
 
-    print(f"\nScanning for images in raw data...")
-    for cls_name in CLASSES:
-        cls_path = os.path.join(RAW_DATA_PATH, cls_name)
+        logger.info(f"\nScanning for images in raw data...")
+        for cls_name in CLASSES:
+            cls_path = os.path.join(RAW_DATA_PATH, cls_name)
 
-        if not os.path.exists(cls_path):
-            print(f"  WARNING: Class folder '{cls_name}' not found at: {cls_path}. Skipping.")
-            continue
+            if not os.path.exists(cls_path):
+                logger.warning(f"Class folder '{cls_name}' not found at: {cls_path}. Skipping.")
+                continue
 
-        unique_images_in_class = set()
-        for ext in ['*.png', '*.PNG', '*.jpeg', '*.JPEG', '*.jpg', '*.JPG']:
-            unique_images_in_class.update(glob(os.path.join(cls_path, ext)))
+            unique_images_in_class = set()
+            for ext in ['*.png', '*.PNG', '*.jpeg', '*.JPEG', '*.jpg', '*.JPG']:
+                unique_images_in_class.update(glob(os.path.join(cls_path, ext)))
+            
+            images_for_current_class = list(unique_images_in_class)
+
+            if not images_for_current_class:
+                logger.warning(f"No images found with common extensions in '{cls_name}' folder: {cls_path}. Skipping.")
+                continue
+
+            all_image_paths.extend(images_for_current_class)
+            all_labels.extend([cls_name] * len(images_for_current_class))
         
-        images_for_current_class = list(unique_images_in_class) # Convert back to list
+        if not all_image_paths:
+            # Raise a custom DataError if no images are found at all
+            raise DataError("No unique images were found across any specified classes.", sys.exc_info())
+
+        logger.info(f"Found a total of {len(all_image_paths)} unique images for splitting.")
+
+        #Split Data into Train, Validation, and Test Sets
+        train_paths, temp_paths, train_labels, temp_labels = train_test_split(
+            all_image_paths, all_labels,
+            test_size=(VAL_SPLIT + TEST_SPLIT),
+            stratify=all_labels,
+            random_state=42
+        )
+
+        val_paths, test_paths, val_labels, test_labels = train_test_split(
+            temp_paths, temp_labels,
+            test_size=(TEST_SPLIT / (VAL_SPLIT + TEST_SPLIT)),
+            stratify=temp_labels,
+            random_state=42
+        )
+
+        datasets = {
+            'train': list(zip(train_paths, train_labels)),
+            'val': list(zip(val_paths, val_labels)),
+            'test': list(zip(test_paths, test_labels))
+        }
+        logger.info("Data split into training, validation, and test sets.")
+
+        #Copy Files to Processed Directories
+        for subset, data_list in datasets.items():
+            logger.info(f"\nCopying {subset} images...")
+            for img_path, label in tqdm(data_list, desc=f"Copying {subset}"):
+                dest_dir = os.path.join(PROCESSED_DATA_PATH, subset, label)
+                try:
+                    shutil.copy(img_path, dest_dir)
+                except Exception as copy_e:
+                    # Catch copy errors and raise a FileSystemError
+                    raise FileSystemError(f"Failed to copy '{os.path.basename(img_path)}' to '{dest_dir}': {copy_e}", sys.exc_info()) from copy_e
         
-        if not images_for_current_class:
-            print(f"  WARNING: No images found with common extensions in '{cls_name}' folder: {cls_path}. Skipping.")
-            continue
+        logger.info("\n--- Data Splitting Complete. Final Counts: ---")
+        for subset in ['train', 'val', 'test']:
+            logger.info(f"--- {subset.upper()} ---")
+            for cls in CLASSES:
+                count = len(os.listdir(os.path.join(PROCESSED_DATA_PATH, subset, cls)))
+                logger.info(f"  {cls}: {count} images")
 
-        all_image_paths.extend(images_for_current_class)
-        all_labels.extend([cls_name] * len(images_for_current_class))
-    
-    if not all_image_paths:
-        print(f"\nCRITICAL ERROR: No images were found across any specified classes ({CLASSES}) in {RAW_DATA_PATH}.")
-        print("Please verify the dataset structure and file extensions.")
-        sys.exit(1) # Exit if no images found at all
-
-    print(f"Found a total of {len(all_image_paths)} images for splitting.")
-
-    # --- Step 3: Split Data into Train, Validation, and Test Sets ---
-    # Stratified split to maintain class proportions
-    train_paths, temp_paths, train_labels, temp_labels = train_test_split(
-        all_image_paths, all_labels,
-        test_size=(VAL_SPLIT + TEST_SPLIT),
-        stratify=all_labels,
-        random_state=42 # For reproducibility
-    )
-
-    val_paths, test_paths, val_labels, test_labels = train_test_split(
-        temp_paths, temp_labels,
-        test_size=(TEST_SPLIT / (VAL_SPLIT + TEST_SPLIT)), # Calculate test_size relative to temp_paths
-        stratify=temp_labels,
-        random_state=42 # For reproducibility
-    )
-
-    datasets = {
-        'train': list(zip(train_paths, train_labels)),
-        'val': list(zip(val_paths, val_labels)),
-        'test': list(zip(test_paths, test_labels))
-    }
-    print("Data split into training, validation, and test sets.")
-
-    # --- Step 4: Copy Files to Processed Directories ---
-    for subset, data_list in datasets.items():
-        print(f"\nCopying {subset} images...")
-        for img_path, label in tqdm(data_list, desc=f"Copying {subset}"):
-            dest_dir = os.path.join(PROCESSED_DATA_PATH, subset, label)
-            shutil.copy(img_path, dest_dir)
-    
-    print("\n--- Data Splitting Complete. Final Counts: ---")
-    for subset in ['train', 'val', 'test']:
-        print(f"--- {subset.upper()} ---")
-        for cls in CLASSES:
-            count = len(os.listdir(os.path.join(PROCESSED_DATA_PATH, subset, cls)))
-            print(f"  {cls}: {count} images")
+    # Catch custom exceptions or any other generic exceptions
+    except TBDetectionError as e:
+        exit_on_critical_error(e, "A project-specific error occurred during data splitting.")
+    except Exception as e:
+        exit_on_critical_error(e, "An unexpected error occurred during data splitting.")
 
 if __name__ == "__main__":
     split_data()
