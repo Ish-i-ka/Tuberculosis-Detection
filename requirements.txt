@@ -8,3 +8,4 @@ opencv-python==4.8.1.78
 tf-keras-vis==0.8.2
 tqdm==4.66.1
 ipykernel
+keras-tuner
