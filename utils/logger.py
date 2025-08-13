@@ -6,10 +6,6 @@ import sys
 from logging.handlers import RotatingFileHandler # Still using RotatingFileHandler for robustness
 from datetime import datetime
 
-# Import config.py (need to adjust sys.path as it's outside utils)
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.join(current_dir, '..') # Go up from utils/ to project root
-sys.path.append(project_root)
 import config
 
 # --- Configure the single, global logger instance ---

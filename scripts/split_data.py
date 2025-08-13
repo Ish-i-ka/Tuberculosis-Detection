@@ -9,10 +9,7 @@ from tqdm import tqdm # For progress bar during file copying
 
 # --- Import Configuration ---
 import sys
-# Add project root directory to sys.path to import config.py
-current_script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root_dir = os.path.join(current_script_dir, '..')
-sys.path.append(project_root_dir)
+
 import config
 from utils.logger import logger # Import the global logger
 from utils.exception import TBDetectionError,DataError, FileSystemError # Import custom exceptions
