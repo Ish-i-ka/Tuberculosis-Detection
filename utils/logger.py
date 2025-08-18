@@ -1,12 +1,9 @@
-# tb_detection_project/utils/logger.py
-
 import logging
 import os
 import sys
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 
-# Import constants directly
 from constant import training_pipeline as CONSTANT
 import config
 

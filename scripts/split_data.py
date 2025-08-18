@@ -1,6 +1,3 @@
-# tb_detection_project/scripts/split_data.py
-
-
 import os
 import shutil
 import random
@@ -12,7 +9,6 @@ from tqdm import tqdm # For progress bar during file copying
 import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-# --- Import Configuration ---
 import sys
 import config
 from utils.logger import logger
@@ -55,7 +51,6 @@ def split_data(config: DataSplittingConfig) -> DataSplittingArtifact:
         all_labels = []
 
         if not os.path.exists(raw_data_path):
-            # Raise a custom DataError, passing sys.exc_info()
             raise DataError(f"Raw data directory not found at: {raw_data_path}", sys.exc_info())
 
         logger.info(f"\nScanning for images in raw data...")
@@ -80,7 +75,6 @@ def split_data(config: DataSplittingConfig) -> DataSplittingArtifact:
             all_labels.extend([cls_name] * len(images_for_current_class))
         
         if not all_image_paths:
-            # Raise a custom DataError if no images are found at all
             raise DataError("No unique images were found across any specified classes.", sys.exc_info())
 
         logger.info(f"Found a total of {len(all_image_paths)} unique images for splitting.")
@@ -155,38 +149,27 @@ def split_data(config: DataSplittingConfig) -> DataSplittingArtifact:
         )
         
         return artifact
-
-    # Catch custom exceptions or any other generic exceptions
     except TBDetectionError as e:
         exit_on_critical_error(e, "A project-specific error occurred during data splitting.")
     except Exception as e:
         exit_on_critical_error(e, "An unexpected error occurred during data splitting.")
 
-if __name__ == "__main__":
-    # ... (all imports and function definitions for split_data.py go here) ...
+"""if __name__ == "__main__":
     from datetime import datetime
-    # Import necessary config entities for local setup
     from entity.config_entity import TrainingPipelineConfig, DataSplittingConfig
-    # Import project-level config for BASE_DIR
     import config as project_root_config
     
     try:
         current_timestamp = datetime.now() 
-
-        # Initialize TrainingPipelineConfig with the current timestamp
         training_config = TrainingPipelineConfig(timestamp=current_timestamp)
-        
-        # Create the base artifact directory for this run (e.g., Artifacts/YYYYMMDD_HHMMSS)
-        project_root_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) # Go up from scripts/ to project root
+        project_root_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) 
         base_artifact_dir_full_path = os.path.join(project_root_abs_path, CONSTANT.ARTIFACT_DIR_NAME, training_config.timestamp_str)
         
         create_and_clear_directory(base_artifact_dir_full_path, "pipeline artifact root directory for individual run")
-        
-        # Log the timestamped artifact directory. User needs to copy this for next steps.
         logger.info(f"Artifacts for this individual run will be stored in: {base_artifact_dir_full_path}")
         logger.info(f"Please use this timestamp for subsequent individual script runs: {training_config.timestamp_str}")
         
         data_splitting_config = DataSplittingConfig(training_pipeline_config=training_config)
         split_data(config=data_splitting_config)
     except Exception as e:
-        exit_on_critical_error(e, "Error during individual split_data.py execution.")
+        exit_on_critical_error(e, "Error during individual split_data.py execution.")"""

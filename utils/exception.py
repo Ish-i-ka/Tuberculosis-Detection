@@ -1,5 +1,3 @@
-# tb_detection_project/utils/exceptions.py
-
 import sys
 
 class TBDetectionError(Exception):

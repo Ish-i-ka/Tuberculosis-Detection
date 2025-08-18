@@ -1,5 +1,3 @@
-# tuberculosis_detection/main.py
-
 import os
 import sys
 from datetime import datetime

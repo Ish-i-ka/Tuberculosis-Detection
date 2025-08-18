@@ -1,9 +1,6 @@
-# tb_detection_project/utils/common.py
-
 import os
 import shutil
 import sys
-# Import the global logger instance and exceptions from their packages
 from utils.logger import logger
 from utils.exception import FileSystemError, TBDetectionError
 

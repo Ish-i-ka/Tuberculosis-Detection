@@ -1,10 +1,6 @@
-# tb_detection_project/entity/config_entity.py
-
 from datetime import datetime
 import os
-# Import constants from our new constant package
 from constant import training_pipeline as CONSTANT
-# Import the root config (for BASE_DIR and RAW_DATA_FOLDER_NAME)
 import config 
 
 class TrainingPipelineConfig:
@@ -29,7 +25,6 @@ class TrainingPipelineConfig:
 
 
 class DataSplittingConfig:
-    """Configuration for the data splitting and preprocessing stage."""
     def __init__(self, training_pipeline_config: TrainingPipelineConfig):
         # Artifacts/timestamp/data_splitting
         self.data_splitting_dir: str = os.path.join(
@@ -48,7 +43,6 @@ class DataSplittingConfig:
 
 
 class ModelTrainerConfig:
-    """Configuration for the model training stage."""
     def __init__(self, training_pipeline_config: TrainingPipelineConfig):
         # Artifacts/timestamp/model_trainer
         self.model_trainer_dir: str = os.path.join(
@@ -70,7 +64,7 @@ class ModelTrainerConfig:
         self.img_width: int = CONSTANT.IMG_WIDTH
         self.batch_size: int = CONSTANT.BATCH_SIZE
         
-        # Default HPs (can be replaced by tuning results or used directly)
+        # Default HPs 
         self.dense_units: int = CONSTANT.HP_DENSE_UNITS
         self.dropout_rate: float = CONSTANT.HP_DROPOUT_RATE
         self.lr_phase1: float = CONSTANT.LR_PHASE1_DEFAULT
@@ -81,7 +75,6 @@ class ModelTrainerConfig:
 
 
 class ModelEvaluationConfig:
-    """Configuration for the model evaluation stage."""
     def __init__(self, training_pipeline_config: TrainingPipelineConfig):
         # Artifacts/timestamp/model_evaluation
         self.model_evaluation_dir: str = os.path.join(
@@ -99,7 +92,7 @@ class ModelEvaluationConfig:
         self.img_width: int = CONSTANT.IMG_WIDTH
         self.batch_size: int = CONSTANT.BATCH_SIZE
         
-        # Paths to input model and data from previous stages (within current artifact_dir)
+        # Paths to input model and data from previous stages
         self.trained_model_path: str = os.path.join(
             training_pipeline_config.artifact_dir, 
             CONSTANT.MODEL_TRAINER_DIR_NAME,

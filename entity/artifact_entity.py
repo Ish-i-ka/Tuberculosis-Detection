@@ -1,5 +1,3 @@
-# tb_detection_project/entity/artifact_entity.py
-
 from dataclasses import dataclass
 from typing import Dict, Optional
 

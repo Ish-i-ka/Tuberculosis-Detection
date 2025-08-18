@@ -1,5 +1,3 @@
-# tb_detection_project/utils/mlflow_utils.py
-
 import os
 import sys
 import mlflow
