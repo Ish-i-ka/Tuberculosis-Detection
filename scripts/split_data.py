@@ -1,5 +1,6 @@
 # tb_detection_project/scripts/split_data.py
 
+
 import os
 import shutil
 import random
@@ -7,47 +8,59 @@ from glob import glob
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm # For progress bar during file copying
 
+# Ensure project root is in sys.path for imports
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 # --- Import Configuration ---
 import sys
-
 import config
-from utils.logger import logger # Import the global logger
-from utils.exception import TBDetectionError,DataError, FileSystemError # Import custom exceptions
-from utils.common import create_and_clear_directory, exit_on_critical_error 
+from utils.logger import logger
+from utils.exception import DataError, FileSystemError, TBDetectionError
+from utils.common import create_and_clear_directory, exit_on_critical_error
+from entity.config_entity import DataSplittingConfig
+from entity.artifact_entity import DataSplittingArtifact
+from constant import training_pipeline as CONSTANT
 
-# --- Configuration (using variables from config.py) ---
-RAW_DATA_PATH = config.RAW_DATA_PATH
-PROCESSED_DATA_PATH = config.PROCESSED_DATA_PATH
-TRAIN_SPLIT = config.TRAIN_SPLIT
-VAL_SPLIT = config.VAL_SPLIT
-TEST_SPLIT = config.TEST_SPLIT
-CLASSES = config.CLASSES
 
-def split_data():
+def split_data(config: DataSplittingConfig) -> DataSplittingArtifact:
+    raw_data_path = config.raw_data_path
+    processed_data_dir = config.processed_data_dir
+    classes = config.classes
+    split_ratios = config.split_ratios
+    data_splitting_dir = config.data_splitting_dir
+    
+    # Initialize class distribution dictionary
+    class_distribution = {
+        'train': {cls: 0 for cls in classes},
+        'val': {cls: 0 for cls in classes},
+        'test': {cls: 0 for cls in classes}
+    }
+    
     logger.info(f"--- Starting Data Splitting Process ---")
-    logger.info(f"Source Raw Data Path: {RAW_DATA_PATH}")
-    logger.info(f"Destination Processed Data Path: {PROCESSED_DATA_PATH}")
+    logger.info(f"Source Raw Data Path: {raw_data_path}")
+    logger.info(f"Destination Processed Data Path: {processed_data_dir}")
 
     try:
-        # This function now raises FileSystemError if there's an issue
-        create_and_clear_directory(PROCESSED_DATA_PATH, "processed data directory")
+        create_and_clear_directory(data_splitting_dir, "data splitting directory")
+        create_and_clear_directory(processed_data_dir, "processed data directory")
         for subset in ['train', 'val', 'test']:
-            for cls in CLASSES:
+            for cls in classes:
                 # os.makedirs will raise an OSError if it fails, caught by FileSystemError
-                os.makedirs(os.path.join(PROCESSED_DATA_PATH, subset, cls), exist_ok=True)
+                os.makedirs(os.path.join(processed_data_dir, subset, cls), exist_ok=True)
         logger.info("Destination directories prepared.")
 
         # Collect All Image Paths from Raw Data 
         all_image_paths = []
         all_labels = []
 
-        if not os.path.exists(RAW_DATA_PATH):
+        if not os.path.exists(raw_data_path):
             # Raise a custom DataError, passing sys.exc_info()
-            raise DataError(f"Raw data directory not found at: {RAW_DATA_PATH}", sys.exc_info())
+            raise DataError(f"Raw data directory not found at: {raw_data_path}", sys.exc_info())
 
         logger.info(f"\nScanning for images in raw data...")
-        for cls_name in CLASSES:
-            cls_path = os.path.join(RAW_DATA_PATH, cls_name)
+        for cls_name in classes:
+            cls_path = os.path.join(raw_data_path, cls_name)
 
             if not os.path.exists(cls_path):
                 logger.warning(f"Class folder '{cls_name}' not found at: {cls_path}. Skipping.")
@@ -72,17 +85,21 @@ def split_data():
 
         logger.info(f"Found a total of {len(all_image_paths)} unique images for splitting.")
 
+        train_ratio = split_ratios["train"]
+        val_ratio = split_ratios["val"]
+        test_ratio = split_ratios["test"]
+
         #Split Data into Train, Validation, and Test Sets
         train_paths, temp_paths, train_labels, temp_labels = train_test_split(
             all_image_paths, all_labels,
-            test_size=(VAL_SPLIT + TEST_SPLIT),
+            test_size=(val_ratio + test_ratio),
             stratify=all_labels,
             random_state=42
         )
 
         val_paths, test_paths, val_labels, test_labels = train_test_split(
             temp_paths, temp_labels,
-            test_size=(TEST_SPLIT / (VAL_SPLIT + TEST_SPLIT)),
+            test_size=(test_ratio / (val_ratio + test_ratio)),
             stratify=temp_labels,
             random_state=42
         )
@@ -94,23 +111,50 @@ def split_data():
         }
         logger.info("Data split into training, validation, and test sets.")
 
-        #Copy Files to Processed Directories
+        # Copy Files to both data/processed and artifacts directories
+        artifacts_processed_dir = os.path.join(data_splitting_dir, CONSTANT.PROCESSED_DATA_SUBDIR_NAME)
+        create_and_clear_directory(artifacts_processed_dir, "artifacts processed data directory")
+
+        # Create required directories in artifacts
+        for subset in ['train', 'val', 'test']:
+            for cls in classes:
+                os.makedirs(os.path.join(artifacts_processed_dir, subset, cls), exist_ok=True)
+
+        #Copy Files to both Processed Directories
         for subset, data_list in datasets.items():
             logger.info(f"\nCopying {subset} images...")
             for img_path, label in tqdm(data_list, desc=f"Copying {subset}"):
-                dest_dir = os.path.join(PROCESSED_DATA_PATH, subset, label)
+                # Copy to data/processed
+                dest_dir_data = os.path.join(processed_data_dir, subset, label)
+                # Copy to artifacts
+                dest_dir_artifacts = os.path.join(artifacts_processed_dir, subset, label)
                 try:
-                    shutil.copy(img_path, dest_dir)
+                    shutil.copy(img_path, dest_dir_data)
+                    shutil.copy(img_path, dest_dir_artifacts)
                 except Exception as copy_e:
                     # Catch copy errors and raise a FileSystemError
-                    raise FileSystemError(f"Failed to copy '{os.path.basename(img_path)}' to '{dest_dir}': {copy_e}", sys.exc_info()) from copy_e
+                    raise FileSystemError(f"Failed to copy '{os.path.basename(img_path)}': {copy_e}", sys.exc_info()) from copy_e
         
         logger.info("\n--- Data Splitting Complete. Final Counts: ---")
+        # Update class distribution and log counts
         for subset in ['train', 'val', 'test']:
             logger.info(f"--- {subset.upper()} ---")
-            for cls in CLASSES:
-                count = len(os.listdir(os.path.join(PROCESSED_DATA_PATH, subset, cls)))
+            for cls in classes:
+                count = len(os.listdir(os.path.join(processed_data_dir, subset, cls)))
+                class_distribution[subset][cls] = count
                 logger.info(f"  {cls}: {count} images")
+        
+        # Create and return DataSplittingArtifact
+        artifact = DataSplittingArtifact(
+            data_splitting_dir=data_splitting_dir,
+            processed_data_dir=processed_data_dir,
+            train_dir=os.path.join(processed_data_dir, 'train'),
+            val_dir=os.path.join(processed_data_dir, 'val'),
+            test_dir=os.path.join(processed_data_dir, 'test'),
+            class_distribution=class_distribution
+        )
+        
+        return artifact
 
     # Catch custom exceptions or any other generic exceptions
     except TBDetectionError as e:
@@ -119,4 +163,30 @@ def split_data():
         exit_on_critical_error(e, "An unexpected error occurred during data splitting.")
 
 if __name__ == "__main__":
-    split_data()
+    # ... (all imports and function definitions for split_data.py go here) ...
+    from datetime import datetime
+    # Import necessary config entities for local setup
+    from entity.config_entity import TrainingPipelineConfig, DataSplittingConfig
+    # Import project-level config for BASE_DIR
+    import config as project_root_config
+    
+    try:
+        current_timestamp = datetime.now() 
+
+        # Initialize TrainingPipelineConfig with the current timestamp
+        training_config = TrainingPipelineConfig(timestamp=current_timestamp)
+        
+        # Create the base artifact directory for this run (e.g., Artifacts/YYYYMMDD_HHMMSS)
+        project_root_abs_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..')) # Go up from scripts/ to project root
+        base_artifact_dir_full_path = os.path.join(project_root_abs_path, CONSTANT.ARTIFACT_DIR_NAME, training_config.timestamp_str)
+        
+        create_and_clear_directory(base_artifact_dir_full_path, "pipeline artifact root directory for individual run")
+        
+        # Log the timestamped artifact directory. User needs to copy this for next steps.
+        logger.info(f"Artifacts for this individual run will be stored in: {base_artifact_dir_full_path}")
+        logger.info(f"Please use this timestamp for subsequent individual script runs: {training_config.timestamp_str}")
+        
+        data_splitting_config = DataSplittingConfig(training_pipeline_config=training_config)
+        split_data(config=data_splitting_config)
+    except Exception as e:
+        exit_on_critical_error(e, "Error during individual split_data.py execution.")

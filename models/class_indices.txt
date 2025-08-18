@@ -1,1 +1,0 @@
-{'Normal': 0, 'Tuberculosis': 1}

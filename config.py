@@ -2,7 +2,8 @@ import os
 
 # --- Base Paths ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) # Project root
-RAW_DATA_PATH = os.path.join(BASE_DIR, 'data', 'raw', 'TB_Chest_Radiography_Database')
+RAW_DATA_FOLDER_NAME = 'TB_Chest_Radiography_Database'
+RAW_DATA_PATH = os.path.join(BASE_DIR, 'data', 'raw', RAW_DATA_FOLDER_NAME)
 PROCESSED_DATA_PATH = os.path.join(BASE_DIR, 'data', 'processed')
 MODELS_DIR = os.path.join(BASE_DIR, 'models')
 RESULTS_DIR = os.path.join(BASE_DIR, 'results')
@@ -26,8 +27,6 @@ EPOCHS_PHASE2 = 20 # Fine-tune
 LEARNING_RATE_PHASE1 = 0.001
 LEARNING_RATE_PHASE2 = 0.00001 # Much smaller for fine-tuning
 
-
 # --- Model Specifics --- 
 MODEL_NAME = 'resnet50'
 MODEL_FILENAME = f'tb_detection_{MODEL_NAME}_best.h5'
-
